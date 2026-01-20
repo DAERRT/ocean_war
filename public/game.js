@@ -93,20 +93,44 @@ function initializePlacement() {
 
     // Подтверждение расстановки
     document.getElementById('confirmPlacementBtn').addEventListener('click', () => {
-        if (placedShips.length === 10) {
-            socket.emit('placeShips', { code: currentLobbyCode, ships: placedShips });
-        } else {
+        if (placedShips.length !== 10) {
             showError('Расставьте все корабли!');
+            return;
         }
+        
+        // Проверка количества кораблей каждого размера
+        const shipSizes = placedShips.map(ship => ship.length);
+        const requiredSizes = [4, 3, 3, 2, 2, 2, 1, 1, 1, 1];
+        const sortedSizes = [...shipSizes].sort((a, b) => b - a);
+        const sortedRequired = [...requiredSizes].sort((a, b) => b - a);
+        
+        let isValid = true;
+        for (let i = 0; i < sortedSizes.length; i++) {
+            if (sortedSizes[i] !== sortedRequired[i]) {
+                isValid = false;
+                break;
+            }
+        }
+        
+        if (!isValid) {
+            showError('Неверное количество кораблей! Проверьте расстановку.');
+            return;
+        }
+        
+        // Отправка на сервер
+        socket.emit('placeShips', { code: currentLobbyCode, ships: placedShips });
+        document.getElementById('confirmPlacementBtn').disabled = true;
     });
 
     socket.on('placementConfirmed', () => {
         document.getElementById('placementStatus').textContent = 'Расстановка подтверждена. Ожидание противника...';
         document.getElementById('confirmPlacementBtn').classList.add('hidden');
+        document.getElementById('confirmPlacementBtn').disabled = false;
     });
 
     socket.on('placementError', (data) => {
         showError(data.message);
+        document.getElementById('confirmPlacementBtn').disabled = false;
     });
 
     socket.on('allReady', (data) => {
@@ -137,6 +161,8 @@ function initializeGame() {
                 cell.classList.add('miss');
             }
             cell.classList.add('disabled');
+            // Убираем курсор pointer, так как клетка уже использована
+            cell.style.cursor = 'default';
         }
     });
 
@@ -152,6 +178,7 @@ function initializeGame() {
     });
 
     socket.on('turnInfo', (data) => {
+        console.log('Получена информация о ходе:', data.yourTurn);
         myTurn = data.yourTurn;
         updateGameStatus();
     });
@@ -165,7 +192,13 @@ function initializeGame() {
     });
 
     socket.on('error', (data) => {
+        console.log('Ошибка от сервера:', data.message);
         showError(data.message);
+        // Если ошибка связана с ходом, обновляем статус
+        if (data.message.includes('ход') || data.message.includes('Не ваш')) {
+            // Возможно нужно обновить статус хода
+            updateGameStatus();
+        }
     });
 
     socket.on('playerLeft', (data) => {
@@ -238,15 +271,20 @@ function initializeGameBoards() {
             cell.dataset.row = row;
             cell.dataset.col = col;
             
-            if (myTurn) {
-                cell.addEventListener('click', () => handleShoot(row, col, cell));
-            } else {
+            // Всегда добавляем обработчик клика, проверка будет внутри handleShoot
+            cell.addEventListener('click', () => handleShoot(row, col, cell));
+            
+            // Если не наш ход, помечаем как disabled
+            if (!myTurn) {
                 cell.classList.add('disabled');
             }
             
             opponentBoard.appendChild(cell);
         }
     }
+    
+    // Обновляем статус для правильной активации/деактивации клеток
+    updateGameStatus();
 }
 
 // Размещение кораблей
@@ -381,16 +419,34 @@ function updateShipPreviews() {
 
 // Стрельба
 function handleShoot(row, col, cell) {
-    if (!myTurn || gameState !== 'playing') return;
-    if (cell.classList.contains('hit') || cell.classList.contains('miss')) return;
+    // Проверяем все условия перед выстрелом
+    if (!myTurn) {
+        console.log('Не ваш ход');
+        return;
+    }
+    if (gameState !== 'playing') {
+        console.log('Игра не началась');
+        return;
+    }
+    if (cell.classList.contains('hit') || cell.classList.contains('miss')) {
+        console.log('Уже стреляли в эту клетку');
+        return;
+    }
+    if (cell.classList.contains('disabled') && (cell.classList.contains('hit') || cell.classList.contains('miss'))) {
+        return;
+    }
     
+    console.log('Выстрел:', row, col);
     socket.emit('shoot', { code: currentLobbyCode, row, col });
+    // Временно блокируем клетку до получения результата
     cell.classList.add('disabled');
 }
 
 function updateGameStatus() {
     const statusEl = document.getElementById('gameStatus');
     const indicatorEl = document.getElementById('turnIndicator');
+    
+    console.log('Обновление статуса игры, myTurn:', myTurn);
     
     if (myTurn) {
         statusEl.textContent = 'Ваш ход!';
@@ -399,9 +455,16 @@ function updateGameStatus() {
         
         // Включаем клики на поле противника
         document.querySelectorAll('#opponentBoard .cell').forEach(cell => {
+            // Активируем только те клетки, в которые еще не стреляли
             if (!cell.classList.contains('hit') && !cell.classList.contains('miss')) {
                 cell.classList.remove('disabled');
                 cell.style.cursor = 'pointer';
+                cell.style.pointerEvents = 'auto';
+            } else {
+                // Клетки, в которые уже стреляли, остаются заблокированными
+                cell.classList.add('disabled');
+                cell.style.cursor = 'default';
+                cell.style.pointerEvents = 'none';
             }
         });
     } else {
@@ -411,8 +474,12 @@ function updateGameStatus() {
         
         // Отключаем клики на поле противника
         document.querySelectorAll('#opponentBoard .cell').forEach(cell => {
-            cell.classList.add('disabled');
-            cell.style.cursor = 'not-allowed';
+            // Если в клетку еще не стреляли, блокируем её
+            if (!cell.classList.contains('hit') && !cell.classList.contains('miss')) {
+                cell.classList.add('disabled');
+                cell.style.cursor = 'not-allowed';
+                cell.style.pointerEvents = 'none';
+            }
         });
     }
 }

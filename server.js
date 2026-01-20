@@ -24,48 +24,140 @@ function generateLobbyCode() {
 
 // Проверка валидности расстановки кораблей
 function validateShipPlacement(ships) {
+  // Сетка для отслеживания занятых клеток (0 = свободно, 1 = занято кораблем или соседней клеткой)
   const grid = Array(10).fill(null).map(() => Array(10).fill(0));
-  const shipSizes = [4, 3, 3, 2, 2, 2, 1, 1, 1, 1];
+  const requiredShips = { 4: 1, 3: 2, 2: 3, 1: 4 };
+  const actualShips = { 4: 0, 3: 0, 2: 0, 1: 0 };
   
-  if (ships.length !== 10) return false;
+  if (!ships || !Array.isArray(ships) || ships.length !== 10) {
+    console.log('Ошибка: неверное количество кораблей', ships?.length);
+    return false;
+  }
   
+  // Сначала проверяем структуру и считаем корабли
   for (let i = 0; i < ships.length; i++) {
     const ship = ships[i];
-    if (ship.length !== shipSizes[i]) return false;
     
-    // Проверка, что корабль прямой (горизонтальный или вертикальный)
-    const isHorizontal = ship[0].row === ship[ship.length - 1].row;
-    const isVertical = ship[0].col === ship[ship.length - 1].col;
+    // Проверка размера корабля
+    if (!ship || !Array.isArray(ship) || ship.length < 1 || ship.length > 4) {
+      console.log('Ошибка: неверная структура корабля', i, ship);
+      return false;
+    }
     
-    if (!isHorizontal && !isVertical) return false;
+    const size = ship.length;
+    if (!requiredShips.hasOwnProperty(size)) {
+      console.log('Ошибка: неверный размер корабля', size);
+      return false;
+    }
     
-    // Проверка, что все клетки корабля последовательны
+    actualShips[size]++;
+    
+    // Проверка структуры клеток
     for (let j = 0; j < ship.length; j++) {
       const cell = ship[j];
-      if (cell.row < 0 || cell.row >= 10 || cell.col < 0 || cell.col >= 10) return false;
+      if (!cell || typeof cell.row !== 'number' || typeof cell.col !== 'number') {
+        console.log('Ошибка: неверная структура клетки', cell);
+        return false;
+      }
+      if (cell.row < 0 || cell.row >= 10 || cell.col < 0 || cell.col >= 10) {
+        console.log('Ошибка: клетка вне границ', cell);
+        return false;
+      }
+    }
+    
+    // Проверка, что корабль прямой (горизонтальный или вертикальный)
+    if (ship.length > 1) {
+      // Сортируем клетки для правильной проверки
+      const sortedShip = [...ship].sort((a, b) => {
+        if (a.row !== b.row) return a.row - b.row;
+        return a.col - b.col;
+      });
       
-      if (isHorizontal) {
-        if (cell.row !== ship[0].row || cell.col !== ship[0].col + j) return false;
-      } else {
-        if (cell.col !== ship[0].col || cell.row !== ship[0].row + j) return false;
+      const isHorizontal = sortedShip[0].row === sortedShip[sortedShip.length - 1].row;
+      const isVertical = sortedShip[0].col === sortedShip[sortedShip.length - 1].col;
+      
+      if (!isHorizontal && !isVertical) {
+        console.log('Ошибка: корабль не прямой', ship);
+        return false;
       }
       
-      // Проверка на пересечение с другими кораблями
-      if (grid[cell.row][cell.col] === 1) return false;
-      
-      // Отметка клетки и соседних клеток
-      for (let dr = -1; dr <= 1; dr++) {
-        for (let dc = -1; dc <= 1; dc++) {
-          const nr = cell.row + dr;
-          const nc = cell.col + dc;
-          if (nr >= 0 && nr < 10 && nc >= 0 && nc < 10) {
-            grid[nr][nc] = 1;
+      // Проверка, что все клетки корабля последовательны
+      for (let j = 1; j < sortedShip.length; j++) {
+        if (isHorizontal) {
+          // Для горизонтального корабля проверяем, что колонки идут подряд
+          if (sortedShip[j].row !== sortedShip[0].row || 
+              sortedShip[j].col !== sortedShip[j-1].col + 1) {
+            console.log('Ошибка: клетки корабля не последовательны (горизонтально)', sortedShip);
+            return false;
+          }
+        } else {
+          // Для вертикального корабля проверяем, что строки идут подряд
+          if (sortedShip[j].col !== sortedShip[0].col || 
+              sortedShip[j].row !== sortedShip[j-1].row + 1) {
+            console.log('Ошибка: клетки корабля не последовательны (вертикально)', sortedShip);
+            return false;
           }
         }
       }
     }
   }
   
+  // Проверка количества кораблей каждого размера
+  for (const size in requiredShips) {
+    if (actualShips[size] !== requiredShips[size]) {
+      console.log('Ошибка: неверное количество кораблей размера', size, 
+        'ожидается:', requiredShips[size], 'получено:', actualShips[size]);
+      return false;
+    }
+  }
+  
+  // Проверяем пересечения и соседние клетки
+  // Проходим по всем кораблям и проверяем каждую клетку
+  for (let i = 0; i < ships.length; i++) {
+    const ship = ships[i];
+    
+    for (let j = 0; j < ship.length; j++) {
+      const cell = ship[j];
+      
+      // Проверка на пересечение с другими кораблями
+      for (let k = 0; k < ships.length; k++) {
+        if (k === i) continue; // Пропускаем текущий корабль
+        
+        const otherShip = ships[k];
+        const hasOverlap = otherShip.some(c => c.row === cell.row && c.col === cell.col);
+        if (hasOverlap) {
+          console.log('Ошибка: пересечение кораблей в клетке', cell);
+          return false;
+        }
+      }
+      
+      // Проверка на касание с другими кораблями (соседние клетки)
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue; // Пропускаем саму клетку
+          
+          const nr = cell.row + dr;
+          const nc = cell.col + dc;
+          
+          if (nr >= 0 && nr < 10 && nc >= 0 && nc < 10) {
+            // Проверяем, не занята ли эта соседняя клетка другим кораблем
+            for (let k = 0; k < ships.length; k++) {
+              if (k === i) continue; // Пропускаем текущий корабль
+              
+              const otherShip = ships[k];
+              const hasNeighbor = otherShip.some(c => c.row === nr && c.col === nc);
+              if (hasNeighbor) {
+                console.log('Ошибка: корабли касаются друг друга в клетке', { row: nr, col: nc });
+                return false;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  console.log('Валидация пройдена успешно');
   return true;
 }
 
@@ -155,8 +247,21 @@ io.on('connection', (socket) => {
       return;
     }
     
-    if (!validateShipPlacement(ships)) {
-      socket.emit('placementError', { message: 'Неверная расстановка кораблей' });
+    if (!ships || !Array.isArray(ships)) {
+      socket.emit('placementError', { message: 'Некорректные данные кораблей' });
+      return;
+    }
+    
+    if (ships.length !== 10) {
+      socket.emit('placementError', { message: `Ожидается 10 кораблей, получено ${ships.length}` });
+      return;
+    }
+    
+    const isValid = validateShipPlacement(ships);
+    if (!isValid) {
+      console.log('Ошибка валидации расстановки для игрока:', socket.id);
+      console.log('Количество кораблей:', ships.length);
+      socket.emit('placementError', { message: 'Неверная расстановка кораблей. Проверьте, что все корабли размещены правильно и не касаются друг друга.' });
       return;
     }
     
@@ -167,6 +272,7 @@ io.on('connection', (socket) => {
     };
     
     socket.emit('placementConfirmed');
+    console.log('Расстановка подтверждена для игрока:', socket.id);
     
     // Проверка, готовы ли оба игрока
     if (Object.keys(lobby.boards).length === 2) {
@@ -176,6 +282,7 @@ io.on('connection', (socket) => {
         currentTurn: lobby.currentTurn,
         message: 'Игра началась!'
       });
+      console.log('Оба игрока готовы, игра началась в лобби:', code);
     }
   });
 
