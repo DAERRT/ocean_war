@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Морской бой</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>⚓ Морской бой ⚓</h1>
+        
+        <!-- Экран лобби -->
+        <div id="lobbyScreen" class="screen">
+            <div class="lobby-options">
+                <button id="createLobbyBtn" class="btn btn-primary">Создать лобби</button>
+                <div class="divider">или</div>
+                <div class="join-section">
+                    <input type="text" id="lobbyCodeInput" placeholder="Введите код лобби" maxlength="6">
+                    <button id="joinLobbyBtn" class="btn btn-secondary">Присоединиться</button>
+                </div>
+            </div>
+            <div id="lobbyInfo" class="lobby-info hidden">
+                <p>Код лобби: <strong id="lobbyCodeDisplay"></strong></p>
+                <p id="lobbyStatus">Ожидание игрока...</p>
+            </div>
+        </div>
+
+        <!-- Экран расстановки кораблей -->
+        <div id="placementScreen" class="screen hidden">
+            <h2>Расставьте ваши корабли</h2>
+            <div class="placement-info">
+                <p>Корабли: 1×4, 2×3, 3×2, 4×1</p>
+                <p>Кликните на корабль, затем на поле для размещения</p>
+                <p id="placementStatus">Выберите корабль</p>
+            </div>
+            <div class="ships-panel">
+                <div class="ship-selector" data-size="4" data-count="1">
+                    <div class="ship-preview horizontal" data-size="4"></div>
+                    <span>1×4</span>
+                </div>
+                <div class="ship-selector" data-size="3" data-count="2">
+                    <div class="ship-preview horizontal" data-size="3"></div>
+                    <span>2×3</span>
+                </div>
+                <div class="ship-selector" data-size="2" data-count="3">
+                    <div class="ship-preview horizontal" data-size="2"></div>
+                    <span>3×2</span>
+                </div>
+                <div class="ship-selector" data-size="1" data-count="4">
+                    <div class="ship-preview horizontal" data-size="1"></div>
+                    <span>4×1</span>
+                </div>
+            </div>
+            <div class="rotation-controls">
+                <button id="rotateBtn" class="btn btn-small">Повернуть</button>
+            </div>
+            <div class="boards-container">
+                <div class="board-section">
+                    <h3>Ваше поле</h3>
+                    <div id="yourBoard" class="board"></div>
+                </div>
+            </div>
+            <button id="confirmPlacementBtn" class="btn btn-primary hidden">Подтвердить расстановку</button>
+        </div>
+
+        <!-- Экран игры -->
+        <div id="gameScreen" class="screen hidden">
+            <div class="game-info">
+                <p id="gameStatus">Ваш ход</p>
+                <p id="turnIndicator"></p>
+            </div>
+            <div class="boards-container">
+                <div class="board-section">
+                    <h3>Ваше поле</h3>
+                    <div id="yourGameBoard" class="board"></div>
+                </div>
+                <div class="board-section">
+                    <h3>Поле противника</h3>
+                    <div id="opponentBoard" class="board"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Экран победы -->
+        <div id="gameOverScreen" class="screen hidden">
+            <h2 id="gameOverMessage"></h2>
+            <button id="newGameBtn" class="btn btn-primary">Новая игра</button>
+        </div>
+
+        <!-- Сообщения об ошибках -->
+        <div id="errorMessage" class="error-message hidden"></div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
+
